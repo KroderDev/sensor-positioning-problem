@@ -47,31 +47,6 @@ namespace
         return bounds;
     }
 
-    int uniformZoneOnRow(const Grid &Z, int row, int c1, int c2)
-    {
-        int zone = Z[row][c1];
-        for (int c = c1 + 1; c <= c2; ++c)
-        {
-            if (Z[row][c] != zone)
-            {
-                return -1;
-            }
-        }
-        return zone;
-    }
-
-    int uniformZoneOnCol(const Grid &Z, int col, int r1, int r2)
-    {
-        int zone = Z[r1][col];
-        for (int r = r1 + 1; r <= r2; ++r)
-        {
-            if (Z[r][col] != zone)
-            {
-                return -1;
-            }
-        }
-        return zone;
-    }
 }
 
 Solution buildInitialSolution(const ProblemInstance &instance)
