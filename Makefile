@@ -1,5 +1,16 @@
 CXX := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Iinclude
+PKG_CONFIG ?= pkg-config
+
+OPENCV_CFLAGS := $(shell $(PKG_CONFIG) --cflags opencv4 2>/dev/null)
+OPENCV_LIBS   := $(shell $(PKG_CONFIG) --libs opencv4 2>/dev/null)
+
+ifeq ($(strip $(OPENCV_LIBS)),)
+$(error OpenCV no encontrado. Instala libopencv-dev)
+endif
+
+CXXFLAGS += $(OPENCV_CFLAGS)
+LDFLAGS  := $(OPENCV_LIBS)
 
 # Folders
 SRC_DIR  := src
@@ -17,7 +28,7 @@ all: $(TARGET)
 
 # Link executable
 $(TARGET): $(OBJS) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Compile source files to object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
