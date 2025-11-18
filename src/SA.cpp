@@ -4,7 +4,7 @@
 #include <cmath>
 #include <random>
 
-Solution simulatedAnnealing(const ProblemInstance &instance, const SAConfig &cfg)
+Solution simulatedAnnealing(const ProblemInstance &instance, const SAConfig &cfg, Solution *initialOut)
 {
     Solution current = buildInitialSolution(instance);
     double totalVariance = calculateTotalVariance(instance);
@@ -30,6 +30,11 @@ Solution simulatedAnnealing(const ProblemInstance &instance, const SAConfig &cfg
                 break;
             }
         }
+    }
+
+    if (initialOut)
+    {
+        *initialOut = current;
     }
 
     Solution best = current;
