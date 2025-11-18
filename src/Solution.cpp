@@ -2,74 +2,74 @@
 
 #include <algorithm>
 #include <cmath>
-#include <queue>
 #include <random>
 
 namespace
 {
     using Grid = std::vector<std::vector<int>>;
 
-    bool isZoneConnected(const Grid &Z, int zoneId)
+    struct Bounds
     {
-        const int nRows = static_cast<int>(Z.size());
-        const int nCols = static_cast<int>(Z.empty() ? 0 : Z.front().size());
+        int top = 0;
+        int bottom = 0;
+        int left = 0;
+        int right = 0;
+        bool initialized = false;
+    };
 
-        int startRow = -1, startCol = -1;
-        int totalCells = 0;
-        for (int i = 0; i < nRows; ++i)
+    std::vector<Bounds> computeZoneBounds(const Grid &Z, int p)
+    {
+        std::vector<Bounds> bounds(p + 1);
+
+        for (int i = 0; i < static_cast<int>(Z.size()); ++i)
         {
-            for (int j = 0; j < nCols; ++j)
+            for (int j = 0; j < static_cast<int>(Z[0].size()); ++j)
             {
-                if (Z[i][j] == zoneId)
+                int zone = Z[i][j];
+                auto &b = bounds[zone];
+                if (!b.initialized)
                 {
-                    ++totalCells;
-                    if (startRow == -1)
-                    {
-                        startRow = i;
-                        startCol = j;
-                    }
+                    b.top = b.bottom = i;
+                    b.left = b.right = j;
+                    b.initialized = true;
+                }
+                else
+                {
+                    b.top = std::min(b.top, i);
+                    b.bottom = std::max(b.bottom, i);
+                    b.left = std::min(b.left, j);
+                    b.right = std::max(b.right, j);
                 }
             }
         }
 
-        if (totalCells == 0)
+        return bounds;
+    }
+
+    int uniformZoneOnRow(const Grid &Z, int row, int c1, int c2)
+    {
+        int zone = Z[row][c1];
+        for (int c = c1 + 1; c <= c2; ++c)
         {
-            return false;
-        }
-
-        std::queue<std::pair<int, int>> q;
-        std::vector<std::vector<bool>> visited(nRows, std::vector<bool>(nCols, false));
-        q.emplace(startRow, startCol);
-        visited[startRow][startCol] = true;
-        int visitedCount = 0;
-
-        const int dr[4] = {1, -1, 0, 0};
-        const int dc[4] = {0, 0, 1, -1};
-
-        while (!q.empty())
-        {
-            auto [r, c] = q.front();
-            q.pop();
-            ++visitedCount;
-
-            for (int k = 0; k < 4; ++k)
+            if (Z[row][c] != zone)
             {
-                int nr = r + dr[k];
-                int nc = c + dc[k];
-                if (nr < 0 || nr >= nRows || nc < 0 || nc >= nCols)
-                {
-                    continue;
-                }
-                if (visited[nr][nc] || Z[nr][nc] != zoneId)
-                {
-                    continue;
-                }
-                visited[nr][nc] = true;
-                q.emplace(nr, nc);
+                return -1;
             }
         }
+        return zone;
+    }
 
-        return visitedCount == totalCells;
+    int uniformZoneOnCol(const Grid &Z, int col, int r1, int r2)
+    {
+        int zone = Z[r1][col];
+        for (int r = r1 + 1; r <= r2; ++r)
+        {
+            if (Z[r][col] != zone)
+            {
+                return -1;
+            }
+        }
+        return zone;
     }
 }
 
@@ -78,21 +78,90 @@ Solution buildInitialSolution(const ProblemInstance &instance)
     Solution sol;
     sol.Z.assign(instance.nRows, std::vector<int>(instance.nCols, 1));
 
-    int rowsPerZone = std::max(1, instance.nRows / instance.p);
-    int currentZone = 1;
-    int row = 0;
-    while (row < instance.nRows)
+    struct Rect
     {
-        for (int i = 0; i < rowsPerZone && row < instance.nRows; ++i, ++row)
+        int top;
+        int bottom;
+        int left;
+        int right;
+
+        int height() const { return bottom - top + 1; }
+        int width() const { return right - left + 1; }
+        int area() const { return height() * width(); }
+    };
+
+    std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<double> uniform01(0.0, 1.0);
+
+    std::vector<Rect> rects;
+    rects.push_back(Rect{0, instance.nRows - 1, 0, instance.nCols - 1});
+
+    // Generamos p rectangulos mediante cortes aleatorios (guillotine), garantizando p zonas
+    while (static_cast<int>(rects.size()) < instance.p)
+    {
+        // Elegir rectangulo a dividir: el de mayor area para evitar celdas demasiado pequenas
+        int idx = 0;
+        for (int i = 1; i < static_cast<int>(rects.size()); ++i)
         {
-            for (int j = 0; j < instance.nCols; ++j)
+            if (rects[i].area() > rects[idx].area())
             {
-                sol.Z[row][j] = currentZone;
+                idx = i;
             }
         }
-        if (currentZone < instance.p)
+
+        Rect r = rects[idx];
+        bool canSplitH = r.height() >= 2;
+        bool canSplitV = r.width() >= 2;
+        if (!canSplitH && !canSplitV)
         {
-            ++currentZone;
+            break; // no se puede seguir dividiendo
+        }
+
+        bool splitHorizontal = false;
+        if (canSplitH && canSplitV)
+        {
+            splitHorizontal = uniform01(rng) < 0.5;
+        }
+        else if (canSplitH)
+        {
+            splitHorizontal = true;
+        }
+
+        if (splitHorizontal)
+        {
+            std::uniform_int_distribution<int> cutDist(r.top, r.bottom - 1);
+            int cut = cutDist(rng);
+            Rect topRect{r.top, cut, r.left, r.right};
+            Rect bottomRect{cut + 1, r.bottom, r.left, r.right};
+            rects[idx] = topRect;
+            rects.push_back(bottomRect);
+        }
+        else
+        {
+            std::uniform_int_distribution<int> cutDist(r.left, r.right - 1);
+            int cut = cutDist(rng);
+            Rect leftRect{r.top, r.bottom, r.left, cut};
+            Rect rightRect{r.top, r.bottom, cut + 1, r.right};
+            rects[idx] = leftRect;
+            rects.push_back(rightRect);
+        }
+    }
+
+    // Asignar zonas 1..p a los rectangulos generados (si sobran zonas, las dos ultimas se fusionan)
+    while (static_cast<int>(rects.size()) > instance.p)
+    {
+        rects.pop_back();
+    }
+
+    for (int zoneId = 1; zoneId <= static_cast<int>(rects.size()); ++zoneId)
+    {
+        const Rect &r = rects[zoneId - 1];
+        for (int i = r.top; i <= r.bottom; ++i)
+        {
+            for (int j = r.left; j <= r.right; ++j)
+            {
+                sol.Z[i][j] = zoneId;
+            }
         }
     }
 
@@ -182,6 +251,7 @@ bool isSolutionValid(const ProblemInstance &instance,
     std::vector<double> means(instance.p + 1, 0.0), variances(instance.p + 1, 0.0);
     std::vector<int> counts(instance.p + 1, 0);
     calculateErrorAndVariance(instance, Z, means, variances, counts);
+    const auto bounds = computeZoneBounds(Z, instance.p);
 
     for (int k = 1; k <= instance.p; ++k)
     {
@@ -189,11 +259,17 @@ bool isSolutionValid(const ProblemInstance &instance,
         {
             return false;
         }
-        if (variances[k] > instance.alpha * totalVariance)
+        const auto &b = bounds[k];
+        if (!b.initialized)
         {
             return false;
         }
-        if (!isZoneConnected(Z, k))
+        int area = (b.bottom - b.top + 1) * (b.right - b.left + 1);
+        if (counts[k] != area)
+        {
+            return false;
+        }
+        if (variances[k] > instance.alpha * totalVariance)
         {
             return false;
         }
@@ -208,49 +284,223 @@ bool generateNeighbor(const ProblemInstance &instance,
 {
     const int nRows = instance.nRows;
     const int nCols = instance.nCols;
-    neighborZ = currentZ;
 
-    std::uniform_int_distribution<int> rowDist(0, nRows - 1);
-    std::uniform_int_distribution<int> colDist(0, nCols - 1);
+    auto bounds = computeZoneBounds(currentZ, instance.p);
+    std::uniform_int_distribution<int> zoneDist(1, instance.p);
+    std::uniform_int_distribution<int> dirDist(0, 3);    // 0:top,1:bottom,2:left,3:right
+    std::uniform_int_distribution<int> expandDist(0, 1); // 1 expand, 0 shrink
 
-    for (int attempt = 0; attempt < 100; ++attempt)
+    for (int attempt = 0; attempt < 200; ++attempt)
     {
-        int r = rowDist(rng);
-        int c = colDist(rng);
-        int currentZone = currentZ[r][c];
-
-        std::vector<int> candidates;
-        const int dr[4] = {1, -1, 0, 0};
-        const int dc[4] = {0, 0, 1, -1};
-        for (int k = 0; k < 4; ++k)
-        {
-            int nr = r + dr[k];
-            int nc = c + dc[k];
-            if (nr < 0 || nr >= nRows || nc < 0 || nc >= nCols)
-            {
-                continue;
-            }
-            int neighborZone = currentZ[nr][nc];
-            if (neighborZone != currentZone)
-            {
-                candidates.push_back(neighborZone);
-            }
-        }
-
-        if (candidates.empty())
+        neighborZ = currentZ;
+        int zone = zoneDist(rng);
+        const auto &b = bounds[zone];
+        if (!b.initialized)
         {
             continue;
         }
 
-        std::uniform_int_distribution<size_t> pickDist(0, candidates.size() - 1);
-        int newZone = candidates[pickDist(rng)];
-        if (newZone == currentZone)
+        int dir = dirDist(rng);
+        bool expand = expandDist(rng) == 1;
+        bool success = false;
+
+        if (dir == 0) // mover borde superior
         {
-            continue;
+            if (expand)
+            {
+                int targetRow = b.top - 1;
+                if (targetRow < 0)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnRow(neighborZ, targetRow, b.left, b.right);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.bottom != targetRow || adjB.left != b.left || adjB.right != b.right || adjB.top == adjB.bottom)
+                {
+                    continue;
+                }
+                for (int c = b.left; c <= b.right; ++c)
+                {
+                    neighborZ[targetRow][c] = zone;
+                }
+                success = true;
+            }
+            else
+            {
+                if (b.top == 0 || b.top == b.bottom)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnRow(neighborZ, b.top - 1, b.left, b.right);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.bottom != b.top - 1 || adjB.left != b.left || adjB.right != b.right)
+                {
+                    continue;
+                }
+                for (int c = b.left; c <= b.right; ++c)
+                {
+                    neighborZ[b.top][c] = adj;
+                }
+                success = true;
+            }
+        }
+        else if (dir == 1) // borde inferior
+        {
+            if (expand)
+            {
+                int targetRow = b.bottom + 1;
+                if (targetRow >= nRows)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnRow(neighborZ, targetRow, b.left, b.right);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.top != targetRow || adjB.left != b.left || adjB.right != b.right || adjB.top == adjB.bottom)
+                {
+                    continue;
+                }
+                for (int c = b.left; c <= b.right; ++c)
+                {
+                    neighborZ[targetRow][c] = zone;
+                }
+                success = true;
+            }
+            else
+            {
+                if (b.bottom == nRows - 1 || b.top == b.bottom)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnRow(neighborZ, b.bottom + 1, b.left, b.right);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.top != b.bottom + 1 || adjB.left != b.left || adjB.right != b.right)
+                {
+                    continue;
+                }
+                for (int c = b.left; c <= b.right; ++c)
+                {
+                    neighborZ[b.bottom][c] = adj;
+                }
+                success = true;
+            }
+        }
+        else if (dir == 2) // borde izquierdo
+        {
+            if (expand)
+            {
+                int targetCol = b.left - 1;
+                if (targetCol < 0)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnCol(neighborZ, targetCol, b.top, b.bottom);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.right != targetCol || adjB.top != b.top || adjB.bottom != b.bottom || adjB.left == adjB.right)
+                {
+                    continue;
+                }
+                for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    neighborZ[r][targetCol] = zone;
+                }
+                success = true;
+            }
+            else
+            {
+                if (b.left == 0 || b.left == b.right)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnCol(neighborZ, b.left - 1, b.top, b.bottom);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.right != b.left - 1 || adjB.top != b.top || adjB.bottom != b.bottom)
+                {
+                    continue;
+                }
+                for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    neighborZ[r][b.left] = adj;
+                }
+                success = true;
+            }
+        }
+        else // borde derecho
+        {
+            if (expand)
+            {
+                int targetCol = b.right + 1;
+                if (targetCol >= nCols)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnCol(neighborZ, targetCol, b.top, b.bottom);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.left != targetCol || adjB.top != b.top || adjB.bottom != b.bottom || adjB.left == adjB.right)
+                {
+                    continue;
+                }
+                for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    neighborZ[r][targetCol] = zone;
+                }
+                success = true;
+            }
+            else
+            {
+                if (b.right == nCols - 1 || b.left == b.right)
+                {
+                    continue;
+                }
+                int adj = uniformZoneOnCol(neighborZ, b.right + 1, b.top, b.bottom);
+                if (adj <= 0 || adj == zone)
+                {
+                    continue;
+                }
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.left != b.right + 1 || adjB.top != b.top || adjB.bottom != b.bottom)
+                {
+                    continue;
+                }
+                for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    neighborZ[r][b.right] = adj;
+                }
+                success = true;
+            }
         }
 
-        neighborZ[r][c] = newZone;
-        return true;
+        if (success)
+        {
+            return true;
+        }
     }
 
     return false;

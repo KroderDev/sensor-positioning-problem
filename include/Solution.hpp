@@ -25,6 +25,6 @@ double calculateTotalVariance(const ProblemInstance &instance);
 // Verifica homogeneidad y conexidad de todas las zonas.
 bool isSolutionValid(const ProblemInstance &instance, const std::vector<std::vector<int>> &Z, double totalVariance);
 
-// Genera un vecino al azar reasignando una celda fronteriza cuando es posible.
+// Genera un vecino moviendo un borde completo cuando es posible.
 // Devuelve true si se generó un vecino distinto de la solución actual.
 bool generateNeighbor(const ProblemInstance &instance, const std::vector<std::vector<int>> &currentZ, std::vector<std::vector<int>> &neighborZ, std::mt19937 &rng);

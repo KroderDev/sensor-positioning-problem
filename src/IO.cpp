@@ -68,12 +68,12 @@ namespace IO
         // alpha: nivel de homogeneidad
         while (true)
         {
-            cout << "Ingrese el nivel de homogeneidad (alpha > 0): ";
-            if (cin >> instance.alpha && instance.alpha > 0.0)
+            cout << "Ingrese el nivel de homogeneidad: ";
+            if (cin >> instance.alpha && instance.alpha > 0.0 && instance.alpha <= 1.0) // ]0,1]
             {
                 break;
             }
-            cout << "Valor invalido. alpha debe ser un numero positivo." << endl;
+            cout << "Valor invalido. alpha debe estar en ]0,1] en formato decimal." << endl;
             cin.clear();
             cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
@@ -123,8 +123,7 @@ namespace IO
             throw std::runtime_error("No se pudo abrir el archivo de salida: " + path);
         }
 
-        out << errorTotal << '\n'
-            << '\n';
+        out << errorTotal << '\n';
 
         for (int i = 0; i < instance.nRows; ++i)
         {
