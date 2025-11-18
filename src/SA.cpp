@@ -37,7 +37,14 @@ Solution simulatedAnnealing(const ProblemInstance &instance, const SAConfig &cfg
         *initialOut = current;
     }
 
+    std::vector<double> means(instance.p + 1, 0.0), variances(instance.p + 1, 0.0);
+    std::vector<int> counts(instance.p + 1, 0);
+    calculateErrorAndVariance(instance, current.Z, means, variances, counts);
+    double currentPenalty = calculateVariancePenalty(instance, variances, counts, totalVariance);
+    double currentEnergy = current.errorTotal + cfg.penaltyWeight * currentPenalty;
+
     Solution best = current;
+    double bestEnergy = currentEnergy;
 
     double temperature = cfg.T0;
     int iterations = 0;
@@ -66,15 +73,25 @@ Solution simulatedAnnealing(const ProblemInstance &instance, const SAConfig &cfg
                 continue;
             }
 
-            if (!isSolutionValid(instance, neighborZ, totalVariance))
+            if (!isPartitionConnected(instance, neighborZ))
             {
                 continue;
             }
 
-            std::vector<double> means(instance.p + 1, 0.0), variances(instance.p + 1, 0.0);
-            std::vector<int> counts(instance.p + 1, 0);
-            double neighborError = calculateErrorAndVariance(instance, neighborZ, means, variances, counts);
-            double delta = neighborError - current.errorTotal;
+            // Reparación: si hay zonas en L, intentar forzar rectángulos sin solape; si falla, descartar.
+            std::vector<std::vector<int>> repairedZ = neighborZ;
+            if (!makeRectsIfNonOverlapping(instance, repairedZ))
+            {
+                continue;
+            }
+            neighborZ.swap(repairedZ);
+
+            std::vector<double> nMeans(instance.p + 1, 0.0), nVariances(instance.p + 1, 0.0);
+            std::vector<int> nCounts(instance.p + 1, 0);
+            double neighborError = calculateErrorAndVariance(instance, neighborZ, nMeans, nVariances, nCounts);
+            double neighborPenalty = calculateVariancePenalty(instance, nVariances, nCounts, totalVariance);
+            double neighborEnergy = neighborError + cfg.penaltyWeight * neighborPenalty;
+            double delta = neighborEnergy - currentEnergy;
 
             bool accept = false;
             if (delta < 0)
@@ -91,11 +108,14 @@ Solution simulatedAnnealing(const ProblemInstance &instance, const SAConfig &cfg
             {
                 current.Z = std::move(neighborZ);
                 current.errorTotal = neighborError;
+                currentPenalty = neighborPenalty;
+                currentEnergy = neighborEnergy;
             }
 
-            if (current.errorTotal < best.errorTotal)
+            if (currentEnergy < bestEnergy)
             {
                 best = current;
+                bestEnergy = currentEnergy;
             }
         }
 

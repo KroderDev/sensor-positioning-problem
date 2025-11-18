@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <queue>
 #include <random>
 
 namespace
@@ -244,6 +245,29 @@ double calculateTotalVariance(const ProblemInstance &instance)
     return variance;
 }
 
+double calculateVariancePenalty(const ProblemInstance &instance,
+                                const std::vector<double> &variances,
+                                const std::vector<int> &counts,
+                                double totalVariance)
+{
+    double maxVariance = instance.alpha * totalVariance;
+    double penalty = 0.0;
+    for (int k = 1; k <= instance.p; ++k)
+    {
+        if (counts[k] == 0)
+        {
+            // Zona vacía: penalizar fuertemente
+            penalty += maxVariance;
+            continue;
+        }
+        if (variances[k] > maxVariance)
+        {
+            penalty += variances[k] - maxVariance;
+        }
+    }
+    return penalty;
+}
+
 bool isSolutionValid(const ProblemInstance &instance,
                      const std::vector<std::vector<int>> &Z,
                      double totalVariance)
@@ -251,7 +275,11 @@ bool isSolutionValid(const ProblemInstance &instance,
     std::vector<double> means(instance.p + 1, 0.0), variances(instance.p + 1, 0.0);
     std::vector<int> counts(instance.p + 1, 0);
     calculateErrorAndVariance(instance, Z, means, variances, counts);
-    const auto bounds = computeZoneBounds(Z, instance.p);
+
+    // Chequear que cada zona es conexa (4-neighbors) y respeta la varianza máxima.
+    const int nRows = instance.nRows;
+    const int nCols = instance.nCols;
+    std::vector<std::vector<bool>> visited(nRows, std::vector<bool>(nCols, false));
 
     for (int k = 1; k <= instance.p; ++k)
     {
@@ -259,19 +287,193 @@ bool isSolutionValid(const ProblemInstance &instance,
         {
             return false;
         }
-        const auto &b = bounds[k];
-        if (!b.initialized)
-        {
-            return false;
-        }
-        int area = (b.bottom - b.top + 1) * (b.right - b.left + 1);
-        if (counts[k] != area)
-        {
-            return false;
-        }
         if (variances[k] > instance.alpha * totalVariance)
         {
             return false;
+        }
+
+        // BFS para verificar conexidad de la zona k.
+        int startR = -1, startC = -1;
+        for (int i = 0; i < nRows && startR == -1; ++i)
+        {
+            for (int j = 0; j < nCols; ++j)
+            {
+                if (Z[i][j] == k)
+                {
+                    startR = i;
+                    startC = j;
+                    break;
+                }
+            }
+        }
+        if (startR == -1)
+        {
+            return false;
+        }
+
+        int visitedCount = 0;
+        std::queue<std::pair<int, int>> q;
+        q.push({startR, startC});
+        visited[startR][startC] = true;
+
+        const int dr[4] = {-1, 1, 0, 0};
+        const int dc[4] = {0, 0, -1, 1};
+        while (!q.empty())
+        {
+            auto [r, c] = q.front();
+            q.pop();
+            ++visitedCount;
+
+            for (int dir = 0; dir < 4; ++dir)
+            {
+                int nr = r + dr[dir];
+                int nc = c + dc[dir];
+                if (nr < 0 || nr >= nRows || nc < 0 || nc >= nCols)
+                {
+                    continue;
+                }
+                if (visited[nr][nc] || Z[nr][nc] != k)
+                {
+                    continue;
+                }
+                visited[nr][nc] = true;
+                q.push({nr, nc});
+            }
+        }
+
+        if (visitedCount != counts[k])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool isPartitionConnected(const ProblemInstance &instance,
+                          const std::vector<std::vector<int>> &Z)
+{
+    const int nRows = instance.nRows;
+    const int nCols = instance.nCols;
+
+    std::vector<int> counts(instance.p + 1, 0);
+    std::vector<std::vector<bool>> visited(nRows, std::vector<bool>(nCols, false));
+
+    for (int i = 0; i < nRows; ++i)
+    {
+        for (int j = 0; j < nCols; ++j)
+        {
+            int z = Z[i][j];
+            if (z < 1 || z > instance.p)
+            {
+                return false;
+            }
+            counts[z]++;
+        }
+    }
+
+    const int dr[4] = {-1, 1, 0, 0};
+    const int dc[4] = {0, 0, -1, 1};
+
+    for (int k = 1; k <= instance.p; ++k)
+    {
+        if (counts[k] == 0)
+        {
+            return false;
+        }
+        int startR = -1, startC = -1;
+        for (int i = 0; i < nRows && startR == -1; ++i)
+        {
+            for (int j = 0; j < nCols; ++j)
+            {
+                if (Z[i][j] == k)
+                {
+                    startR = i;
+                    startC = j;
+                    break;
+                }
+            }
+        }
+        if (startR == -1)
+        {
+            return false;
+        }
+
+        int visitedCount = 0;
+        std::queue<std::pair<int, int>> q;
+        q.push({startR, startC});
+        visited[startR][startC] = true;
+
+        while (!q.empty())
+        {
+            auto [r, c] = q.front();
+            q.pop();
+            ++visitedCount;
+
+            for (int dir = 0; dir < 4; ++dir)
+            {
+                int nr = r + dr[dir];
+                int nc = c + dc[dir];
+                if (nr < 0 || nr >= nRows || nc < 0 || nc >= nCols)
+                {
+                    continue;
+                }
+                if (visited[nr][nc] || Z[nr][nc] != k)
+                {
+                    continue;
+                }
+                visited[nr][nc] = true;
+                q.push({nr, nc});
+            }
+        }
+
+        if (visitedCount != counts[k])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Intenta reparar la partición forzando que cada zona sea exactamente su bounding box.
+// Solo funciona si los rectángulos no se solapan entre sí. Devuelve true si se pudo reparar.
+bool makeRectsIfNonOverlapping(const ProblemInstance &instance,
+                               std::vector<std::vector<int>> &Z)
+{
+    const auto bounds = computeZoneBounds(Z, instance.p);
+    for (int k = 1; k <= instance.p; ++k)
+    {
+        if (!bounds[k].initialized)
+        {
+            return false;
+        }
+    }
+
+    // Verificar solapamientos entre bounding boxes
+    for (int a = 1; a <= instance.p; ++a)
+    {
+        for (int b = a + 1; b <= instance.p; ++b)
+        {
+            const auto &ba = bounds[a];
+            const auto &bb = bounds[b];
+            bool overlap = !(ba.right < bb.left || bb.right < ba.left || ba.bottom < bb.top || bb.bottom < ba.top);
+            if (overlap)
+            {
+                return false;
+            }
+        }
+    }
+
+    // Sin solapes: podemos rellenar cada rectángulo
+    for (int k = 1; k <= instance.p; ++k)
+    {
+        const auto &b = bounds[k];
+        for (int r = b.top; r <= b.bottom; ++r)
+        {
+            for (int c = b.left; c <= b.right; ++c)
+            {
+                Z[r][c] = k;
+            }
         }
     }
     return true;
@@ -289,6 +491,13 @@ bool generateNeighbor(const ProblemInstance &instance,
     std::uniform_int_distribution<int> zoneDist(1, instance.p);
     std::uniform_int_distribution<int> dirDist(0, 3);    // 0:top,1:bottom,2:left,3:right
     std::uniform_int_distribution<int> expandDist(0, 1); // 1 expand, 0 shrink
+
+    auto pickUnique = [](std::vector<int> &vec, int val) {
+        if (std::find(vec.begin(), vec.end(), val) == vec.end())
+        {
+            vec.push_back(val);
+        }
+    };
 
     for (int attempt = 0; attempt < 200; ++attempt)
     {
@@ -313,17 +522,33 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnRow(neighborZ, targetRow, b.left, b.right);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.bottom != targetRow || adjB.left != b.left || adjB.right != b.right || adjB.top == adjB.bottom)
-                {
-                    continue;
-                }
+                std::vector<int> adjZones;
                 for (int c = b.left; c <= b.right; ++c)
+                {
+                    int adj = neighborZ[targetRow][c];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.bottom < targetRow)
+                {
+                    continue;
+                }
+                int c1 = std::max(b.left, adjB.left);
+                int c2 = std::min(b.right, adjB.right);
+                if (c1 > c2)
+                {
+                    continue;
+                }
+                for (int c = c1; c <= c2; ++c)
                 {
                     neighborZ[targetRow][c] = zone;
                 }
@@ -335,17 +560,34 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnRow(neighborZ, b.top - 1, b.left, b.right);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.bottom != b.top - 1 || adjB.left != b.left || adjB.right != b.right)
-                {
-                    continue;
-                }
+                int targetRow = b.top - 1;
+                std::vector<int> adjZones;
                 for (int c = b.left; c <= b.right; ++c)
+                {
+                    int adj = neighborZ[targetRow][c];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.bottom < targetRow)
+                {
+                    continue;
+                }
+                int c1 = std::max(b.left, adjB.left);
+                int c2 = std::min(b.right, adjB.right);
+                if (c1 > c2)
+                {
+                    continue;
+                }
+                for (int c = c1; c <= c2; ++c)
                 {
                     neighborZ[b.top][c] = adj;
                 }
@@ -361,17 +603,33 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnRow(neighborZ, targetRow, b.left, b.right);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.top != targetRow || adjB.left != b.left || adjB.right != b.right || adjB.top == adjB.bottom)
-                {
-                    continue;
-                }
+                std::vector<int> adjZones;
                 for (int c = b.left; c <= b.right; ++c)
+                {
+                    int adj = neighborZ[targetRow][c];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.top > targetRow)
+                {
+                    continue;
+                }
+                int c1 = std::max(b.left, adjB.left);
+                int c2 = std::min(b.right, adjB.right);
+                if (c1 > c2)
+                {
+                    continue;
+                }
+                for (int c = c1; c <= c2; ++c)
                 {
                     neighborZ[targetRow][c] = zone;
                 }
@@ -383,17 +641,34 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnRow(neighborZ, b.bottom + 1, b.left, b.right);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.top != b.bottom + 1 || adjB.left != b.left || adjB.right != b.right)
-                {
-                    continue;
-                }
+                int targetRow = b.bottom + 1;
+                std::vector<int> adjZones;
                 for (int c = b.left; c <= b.right; ++c)
+                {
+                    int adj = neighborZ[targetRow][c];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.top > targetRow)
+                {
+                    continue;
+                }
+                int c1 = std::max(b.left, adjB.left);
+                int c2 = std::min(b.right, adjB.right);
+                if (c1 > c2)
+                {
+                    continue;
+                }
+                for (int c = c1; c <= c2; ++c)
                 {
                     neighborZ[b.bottom][c] = adj;
                 }
@@ -409,17 +684,33 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnCol(neighborZ, targetCol, b.top, b.bottom);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.right != targetCol || adjB.top != b.top || adjB.bottom != b.bottom || adjB.left == adjB.right)
-                {
-                    continue;
-                }
+                std::vector<int> adjZones;
                 for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    int adj = neighborZ[r][targetCol];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.right < targetCol)
+                {
+                    continue;
+                }
+                int r1 = std::max(b.top, adjB.top);
+                int r2 = std::min(b.bottom, adjB.bottom);
+                if (r1 > r2)
+                {
+                    continue;
+                }
+                for (int r = r1; r <= r2; ++r)
                 {
                     neighborZ[r][targetCol] = zone;
                 }
@@ -431,17 +722,34 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnCol(neighborZ, b.left - 1, b.top, b.bottom);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.right != b.left - 1 || adjB.top != b.top || adjB.bottom != b.bottom)
-                {
-                    continue;
-                }
+                int targetCol = b.left - 1;
+                std::vector<int> adjZones;
                 for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    int adj = neighborZ[r][targetCol];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.right < targetCol)
+                {
+                    continue;
+                }
+                int r1 = std::max(b.top, adjB.top);
+                int r2 = std::min(b.bottom, adjB.bottom);
+                if (r1 > r2)
+                {
+                    continue;
+                }
+                for (int r = r1; r <= r2; ++r)
                 {
                     neighborZ[r][b.left] = adj;
                 }
@@ -457,17 +765,33 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnCol(neighborZ, targetCol, b.top, b.bottom);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.left != targetCol || adjB.top != b.top || adjB.bottom != b.bottom || adjB.left == adjB.right)
-                {
-                    continue;
-                }
+                std::vector<int> adjZones;
                 for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    int adj = neighborZ[r][targetCol];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.left > targetCol)
+                {
+                    continue;
+                }
+                int r1 = std::max(b.top, adjB.top);
+                int r2 = std::min(b.bottom, adjB.bottom);
+                if (r1 > r2)
+                {
+                    continue;
+                }
+                for (int r = r1; r <= r2; ++r)
                 {
                     neighborZ[r][targetCol] = zone;
                 }
@@ -479,17 +803,34 @@ bool generateNeighbor(const ProblemInstance &instance,
                 {
                     continue;
                 }
-                int adj = uniformZoneOnCol(neighborZ, b.right + 1, b.top, b.bottom);
-                if (adj <= 0 || adj == zone)
-                {
-                    continue;
-                }
-                const auto &adjB = bounds[adj];
-                if (!adjB.initialized || adjB.left != b.right + 1 || adjB.top != b.top || adjB.bottom != b.bottom)
-                {
-                    continue;
-                }
+                int targetCol = b.right + 1;
+                std::vector<int> adjZones;
                 for (int r = b.top; r <= b.bottom; ++r)
+                {
+                    int adj = neighborZ[r][targetCol];
+                    if (adj > 0 && adj != zone)
+                    {
+                        pickUnique(adjZones, adj);
+                    }
+                }
+                if (adjZones.empty())
+                {
+                    continue;
+                }
+                std::uniform_int_distribution<int> adjDist(0, static_cast<int>(adjZones.size()) - 1);
+                int adj = adjZones[adjDist(rng)];
+                const auto &adjB = bounds[adj];
+                if (!adjB.initialized || adjB.left > targetCol)
+                {
+                    continue;
+                }
+                int r1 = std::max(b.top, adjB.top);
+                int r2 = std::min(b.bottom, adjB.bottom);
+                if (r1 > r2)
+                {
+                    continue;
+                }
+                for (int r = r1; r <= r2; ++r)
                 {
                     neighborZ[r][b.right] = adj;
                 }

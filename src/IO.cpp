@@ -99,6 +99,7 @@ namespace IO
         cfg.itersPerTemp = j.value("iters_per_temp", 100);
         cfg.coolingFactor = j.value("cooling_factor", 0.95);
         cfg.maxTimeSeconds = j.value("max_time_seconds", 5.0);
+        cfg.penaltyWeight = j.value("penalty_weight", 1000.0);
 
         return cfg;
     }

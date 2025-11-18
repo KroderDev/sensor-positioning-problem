@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 {
     try
     {
-        const std::string instancePath = "data/instances/pequena_6.spp";
+        const std::string instancePath = "data/instances/grande_5.spp";
         const std::string configPath = "data/config/default.json";
 
         // Obtener nombre de la instancia.
