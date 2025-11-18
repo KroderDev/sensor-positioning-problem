@@ -13,7 +13,7 @@ struct Solution
     double errorTotal = 0.0;
 };
 
-// Crea una solución inicial dividiendo las filas en franjas consecutivas.
+// Crea una solución inicial por cortes guillotina aleatorios (rectangulos).
 Solution buildInitialSolution(const ProblemInstance &instance);
 
 // Calcula medias, varianzas y error total de la asignación Z.
