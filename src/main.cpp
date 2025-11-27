@@ -53,21 +53,29 @@ int main(int argc, char *argv[])
 {
     try
     {
-        const std::string instancePath = "data/instances/instance.spp";
+        const std::string defaultInstancePath = "data/instances/instance.spp";
         const std::string configPath = "data/config/default.json";
 
-        // Obtener nombre de la instancia.
-        std::string instanceName = instancePath;
-        auto slashPos = instanceName.find_last_of("/\\");
-        if (slashPos != std::string::npos)
+        std::string instancePath = defaultInstancePath;
+        if (argc >= 2)
         {
-            instanceName = instanceName.substr(slashPos + 1);
+            // Permitir pasar solo el nombre, el nombre con extension o una ruta completa.
+            std::string argPath = argv[1];
+            if (argPath.find_first_of("/\\") == std::string::npos)
+            {
+                if (argPath.find('.') == std::string::npos)
+                {
+                    argPath += ".spp";
+                }
+                instancePath = "data/instances/" + argPath;
+            }
+            else
+            {
+                instancePath = std::move(argPath);
+            }
         }
-        auto dotPos = instanceName.find_last_of('.');
-        if (dotPos != std::string::npos)
-        {
-            instanceName = instanceName.substr(0, dotPos);
-        }
+
+        const std::string instanceName = std::filesystem::path(instancePath).stem().string();
 
         // 1) Leer archivo de instancia
         ProblemInstance instance = IO::readInstanceFromFile(instancePath);
