@@ -9,7 +9,7 @@ header: '[![w:30](https://raw.githubusercontent.com/KroderDev/KroderDev/refs/hea
 # Algoritmo Simulated Annealing
 ## Optimización del Sensor Positioning Problem (SPP)
 **Autor:** Sebastián Andrés Richiardi Pérez
-**Fecha:** 18 de Noviembre 2025
+**Fecha:** 27 de Noviembre 2025
 **Repositorio:** [github.com/KroderDev/sensor-positioning-problem](https://github.com/KroderDev/sensor-positioning-problem
 )
 
@@ -340,28 +340,66 @@ La segmentación final representada como mapa de calor sobre la matríz.
 
 ----
 
-## Conclusiones y Trabajo Futuro
+## Experimentos y Análisis Cuantitativo
 
-**Proceso de Desarrollo:**
+Se evaluó el algoritmo en **15 instancias** clasificadas por tamaño, imponiendo $\alpha = 0.3$.
 
-1.  Diseño de pseudocódigo (foco en estructura de vecindario).
-2.  Implementación de IO y configuración JSON.
-3.  Traducción a C++ y refinamiento del movimiento de fronteras para asegurar rectángulos.
-
-**Conclusiones:**
-
-  - El enfoque de penalización permite navegar eficientemente por el espacio de búsqueda sin bloquearse en óptimos locales infactibles.
-  - La reconstrucción al tras aceptar un movimiento permitió diversificar manteniendo rigida la restricción de la forma.
-  - La heurística tipo guillotina genera soluciones geométricamente válidas, pero con error alto. El SA reduce drásticamente el error, mostrando que la calidad de la solución inicial influye en cuántas iteraciones y qué T0 se requieren.
+| Escenario | Grilla Aprox. | Zonas ($p$) | Instancias |
+| :--- | :---: | :---: | :---: |
+| **Pequeño** | $5 \times 5$ a $9 \times 7$ | 8 | 7 |
+| **Mediano** | $15 \times 15$ | 15 | 5 |
+| **Grande** | $30 \times 26$ | 20 | 5 |
 
 ----
-## Conclusiones y Trabajo Futuro
 
-**Posibles Mejoras:**
+## Resultados Cuantitativos
 
-  * **Vecindario Avanzado:** Implementar operaciones de *Split & Merge* (dividir una zona y fusionar otras dos) para aumentar aún más la diversificación.
-  * **Objetivo multi–criterio:** Extender la función de evaluación para balancear homogeneidad, tamaño mínimo/máximo de zonas y regularidad geométrica (por ejemplo, penalizar zonas muy delgadas o muy pequeñas).
-  * **Algoritmo de Localización:** Implementar en el algoritmo para establecer en el sensor en un punto representativo de la zona, que minimice el error de estimación para los puntos de esa zona.
+Resumen de mejora promedio del Error Cuadrático (SSE) respecto a la solución inicial (Guillotina):
+
+| Escenario | Complejidad | Mejora Promedio (SSE) |
+| :--- | :---: | :---: |
+| **Instancias Pequeñas** | Baja | **39.8%** |
+| **Instancias Medianas** | Media | **12.5%** |
+| **Instancias Grandes** | Alta | **4.3%** |
+
+> **Nota:** En instancias pequeñas, la mejora llegó hasta un 98% en casos específicos.
+
+----
+
+## Análisis de Resultados
+
+1.  **Efectividad en Baja Escala:** El algoritmo es extremadamente efectivo corrigiendo soluciones iniciales en grillas pequeñas.
+2.  **Desafío en Alta Escala:** En instancias grandes, la mejora del 4.3% indica que el espacio de búsqueda es vasto y el vecindario (mover 1 frontera a la vez) puede ser limitante para escapar de óptimos locales en el tiempo dado.
+3.  **Robustez:** En todos los casos, el algoritmo entregó soluciones válidas (conexas y rectangulares) cumpliendo las restricciones de varianza.
+
+----
+
+## Conclusiones y Discusión
+
+**Proceso de Desarrollo:**
+1.  Diseño de pseudocódigo centrado en la estructura de vecindario.
+2.  Implementación modular (IO, Config) y traducción a C++17.
+3.  Refinamiento de operadores geométricos para garantizar la forma rectangular.
+
+**Hallazgos Principales:**
+-   **Eficacia de la Penalización:** Permitir soluciones intermedias infactibles evita el estancamiento en óptimos locales, superando la rigidez de los métodos constructivos puros.
+-   **Robustez:** El algoritmo demostró capacidad para "rescatar" zonificaciones iniciales deficientes, reduciendo drásticamente el error (SSE) independientemente de la calidad de la entrada.
+-   **Costo-Beneficio:** Mientras la heurística (Guillotina) es rápida pero imprecisa, el SA ofrece un balance ajustable entre tiempo de cómputo y calidad de homogeneidad.
+
+----
+
+## Trabajo Futuro
+
+Para escalar el algoritmo a instancias productivas reales, se proponen las siguientes líneas de mejora:
+
+* **Vecindario Avanzado (Split & Merge):**
+    Implementar operaciones topológicas complejas (dividir una zona y fusionar otras dos) para diversificar la búsqueda en instancias grandes donde el movimiento de fronteras es lento.
+
+* **Objetivo Multi-criterio:**
+    Extender la función de costo para balancear homogeneidad no solo con la varianza, sino con restricciones operativas reales: tamaño mínimo de zona y regularidad geométrica (evitar zonas muy delgadas).
+
+* **Integración de Localización:**
+    Incorporar la determinación del punto óptimo de muestreo (centroide/mediana) dentro del ciclo de optimización, resolviendo el problema SPP completo (Zonificación + Localización) en una sola ejecución.
 
 ----
 ## Referencias
