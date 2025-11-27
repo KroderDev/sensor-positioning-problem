@@ -365,6 +365,21 @@ Resumen de mejora promedio del Error Cuadrático (SSE) respecto a la solución i
 > **Nota:** En instancias pequeñas, la mejora llegó hasta un 98% en casos específicos.
 
 ----
+ ![bg left:40% fit](mediana_2_best.png)
+## Resultados
+- **Mediana:** SSE `1879.21`.
+
+----
+## Resultados
+![bg left:50% fit](grande_4_best.png)
+- **Grande:** SSE `24646.4`.
+
+----
+## Resultados
+![bg left:70% fit](grande_2_best.png)
+- **Grande:** SSE `51859.4`.
+
+----
 
 ## Análisis de Resultados
 
@@ -376,11 +391,6 @@ Resumen de mejora promedio del Error Cuadrático (SSE) respecto a la solución i
 
 ## Conclusiones y Discusión
 
-**Proceso de Desarrollo:**
-1.  Diseño de pseudocódigo centrado en la estructura de vecindario.
-2.  Implementación modular (IO, Config) y traducción a C++17.
-3.  Refinamiento de operadores geométricos para garantizar la forma rectangular.
-
 **Hallazgos Principales:**
 -   **Eficacia de la Penalización:** Permitir soluciones intermedias infactibles evita el estancamiento en óptimos locales, superando la rigidez de los métodos constructivos puros.
 -   **Robustez:** El algoritmo demostró capacidad para "rescatar" zonificaciones iniciales deficientes, reduciendo drásticamente el error (SSE) independientemente de la calidad de la entrada.
@@ -390,13 +400,13 @@ Resumen de mejora promedio del Error Cuadrático (SSE) respecto a la solución i
 
 ## Trabajo Futuro
 
-Para escalar el algoritmo a instancias productivas reales, se proponen las siguientes líneas de mejora:
+Para escalar el algoritmo a instancias productivas reales, se proponen las siguientes mejoras:
 
 * **Vecindario Avanzado (Split & Merge):**
     Implementar operaciones topológicas complejas (dividir una zona y fusionar otras dos) para diversificar la búsqueda en instancias grandes donde el movimiento de fronteras es lento.
 
 * **Objetivo Multi-criterio:**
-    Extender la función de costo para balancear homogeneidad no solo con la varianza, sino con restricciones operativas reales: tamaño mínimo de zona y regularidad geométrica (evitar zonas muy delgadas).
+    Extender la función de costo para balancear homogeneidad no solo con la varianza, sino con restricciones operativas reales: tamaño mínimo de zona y regularidad geométrica.
 
 * **Integración de Localización:**
     Incorporar la determinación del punto óptimo de muestreo (centroide/mediana) dentro del ciclo de optimización, resolviendo el problema SPP completo (Zonificación + Localización) en una sola ejecución.
