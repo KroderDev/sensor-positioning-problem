@@ -365,19 +365,16 @@ Resumen de mejora promedio del Error Cuadrático (SSE) respecto a la solución i
 > **Nota:** En instancias pequeñas, la mejora llegó hasta un 98% en casos específicos.
 
 ----
- ![bg left:40% fit](mediana_2_best.png)
-## Resultados
-- **Mediana:** SSE `1879.21`.
+![bg fit](pequena_6.gif)
 
 ----
-## Resultados
-![bg left:50% fit](grande_4_best.png)
-- **Grande:** SSE `24646.4`.
+![bg fit](mediana_2.gif)
 
 ----
-## Resultados
-![bg left:70% fit](grande_2_best.png)
-- **Grande:** SSE `51859.4`.
+![bg fit](grande_4.gif)
+
+----
+![bg fit](grande_2.gif)
 
 ----
 
